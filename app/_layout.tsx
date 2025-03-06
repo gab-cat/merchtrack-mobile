@@ -9,6 +9,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import QueryProvider from "@/providers/query-client";
+import './global.css';
 
 export {
   // Catch any errors thrown by the Layout component.
