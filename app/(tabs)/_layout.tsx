@@ -64,7 +64,7 @@ export default function TabLayout() {
           backgroundColor: '#2C59DB',
         },
         headerTitleStyle: {
-          color: colorScheme === 'dark' ? '#FFFFFF' : '#212529',
+          color: '#FFFFFF',
           fontWeight: '600',
         },
         headerShadowVisible: false,
@@ -82,9 +82,9 @@ export default function TabLayout() {
               <Pressable className="mr-4">
                 {({ pressed }) => (
                   <FontAwesome
-                    name="bell"
+                    name="cart-plus"
                     size={25}
-                    color={colorScheme === 'dark' ? '#FFFFFF' : '#212529'}
+                    color='#FFFFFF'
                     style={{ opacity: pressed ? 0.5 : 1 }}
                   />
                 )}

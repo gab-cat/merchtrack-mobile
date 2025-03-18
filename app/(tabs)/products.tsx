@@ -5,16 +5,15 @@ import { StatusBar } from 'expo-status-bar';
 import { Link, useLocalSearchParams } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as z from 'zod';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { debounce } from 'lodash';
 import { Card } from '@/components/ui/Card';
 import { TextInput } from '@/components/ui/TextInput';
 import { Button } from '@/components/ui/Button';
 import { useColorScheme } from '@/components/useColorScheme';
-import { useProducts } from '@/lib/hooks/use-queries';
 import { useApiClient } from '@/lib/api';
-import Animated, { FadeIn, FadeInDown, SlideInRight } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 // Define schema for filters
 const filterSchema = z.object({
@@ -131,8 +130,6 @@ export default function ProductsScreen() {
         where,
         orderBy,
       });
-
-      console.log(response);
 
       return response;
     },

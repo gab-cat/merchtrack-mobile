@@ -259,15 +259,15 @@ export default function ForgotPasswordScreen() {
         </Card>
         
         <Animated.View 
-          className="flex-row justify-center mt-6"
+          className="flex-col justify-center mt-6"
           entering={FadeInUp.delay(800).duration(1000).springify()}
         >
-          <Text className="text-neutral-6 dark:text-neutral-4">Remember your password? </Text>
+          <Text className="text-neutral-6 text-center dark:text-neutral-4">Remember your password? </Text>
           <Button
             title="Sign in"
             variant="outline"
             onPress={() => router.push('/sign-in')}
-            className="px-2 py-0"
+            className="px-2 py-0 w-[50%] mx-auto mt-4"
           />
         </Animated.View>
       </Animated.View>
