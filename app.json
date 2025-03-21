@@ -22,7 +22,8 @@
         "foregroundImage": "./assets/logo/logo_1024_white_t.png",
         "backgroundColor": "#2C59DB",
         "buildNumber": "1.0.0"
-      }
+      },
+      "package": "com.merchtrack.mobile"
     },
     "web": {
       "bundler": "metro",
@@ -34,6 +35,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "38196009-c4eb-45bd-871a-973c1995a66b"
+      }
     }
   }
 }
