@@ -31,7 +31,10 @@
       "favicon": "./assets/logo/logo_1024_white_t.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
