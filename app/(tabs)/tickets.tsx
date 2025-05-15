@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, SafeAreaView, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, SafeAreaView, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, Modal, TextInput as RNTextInput } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
-import { Link } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import Animated, { FadeIn, FadeInDown, FadeOut, SlideInRight } from 'react-native-reanimated';
 import * as z from 'zod';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { TextInput } from '@/components/ui/TextInput';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useUserStore } from '@/stores/user.store';
 import { useApiClient } from '@/lib/api';
@@ -72,6 +70,47 @@ const newTicketSchema = z.object({
 
 type NewTicketFormValues = z.infer<typeof newTicketSchema>;
 
+// Add TicketUpdate type
+type TicketStatus = "OPEN" | "CLOSED" | "IN_PROGRESS" | "RESOLVED";
+
+interface TicketUpdate {
+  status: TicketStatus;
+  message: string;
+  createdBy?: string;
+  createdAt?: string;
+}
+
+// Add Ticket interface
+interface Ticket {
+  id: string;
+  subject: string;
+  description: string;
+  status: TicketStatus;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  createdAt: string;
+  createdById: string;
+  updates: TicketUpdate[] | undefined | null | string;
+  messages?: {
+    id: string;
+    content: string;
+    isFromSupport: boolean;
+    createdAt: string;
+  }[];
+}
+
+// Define API response type
+interface TicketsResponse {
+  data: Ticket[];
+  metadata: {
+    total: number;
+    hasNextPage?: boolean;
+    hasPreviousPage?: boolean;
+  };
+}
+
+// Valid FontAwesome icon type
+type IconName = React.ComponentProps<typeof FontAwesome>['name'];
+
 export default function TicketsScreen() {
   const colorScheme = useColorScheme();
   const [refreshing, setRefreshing] = useState(false);
@@ -79,9 +118,11 @@ export default function TicketsScreen() {
   const { user } = useUserStore();
   const queryClient = useQueryClient();
   const api = useApiClient();
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
   
   // Form setup with zod validation
-  const { control, handleSubmit, formState: { errors }, reset } = useForm<NewTicketFormValues>({
+  const { control, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<NewTicketFormValues>({
     resolver: zodResolver(newTicketSchema),
     defaultValues: {
       subject: '',
@@ -91,18 +132,22 @@ export default function TicketsScreen() {
   });
 
   // Fetch user tickets
-  const { data: tickets, isLoading, refetch } = useQuery({
+  const { data: ticketsResponse, isLoading, refetch } = useQuery({
     queryKey: ['tickets', user?.id],
     queryFn: async () => {
-      if (!user?.id) return { data: [], metadata: { total: 0 } };
+      if (!user?.id) return { data: [], metadata: { total: 0 } } as TicketsResponse;
       const response = await api.post('/tickets', {
         where: { createdById: user.id },
         orderBy: { createdAt: 'desc' },
       });
-      return response;
+      return response as TicketsResponse;
     },
     enabled: !!user?.id,
   });
+
+  // Access data safely
+  const tickets = ticketsResponse?.data || [];
+  const metadata = ticketsResponse?.metadata || { total: 0 };
 
   // Create new ticket mutation
   const createTicketMutation = useMutation({
@@ -141,6 +186,57 @@ export default function TicketsScreen() {
   // Toggle form with animation
   const toggleNewTicketForm = () => {
     setShowNewTicketForm(!showNewTicketForm);
+  };
+
+  // Process updates to ensure they're in array format
+  const processUpdates = (updates: TicketUpdate[] | undefined | null | string): TicketUpdate[] => {
+    if (!updates) {
+      return [];
+    }
+    
+    // If it's a string, try to parse it as JSON
+    if (typeof updates === 'string') {
+      try {
+        const parsedUpdates = JSON.parse(updates);
+        return Array.isArray(parsedUpdates) ? parsedUpdates : [];
+      } catch (error) {
+        console.warn('Failed to parse updates string:', error);
+        return [];
+      }
+    }
+    
+    // If it's already an array, return it
+    if (Array.isArray(updates)) {
+      return updates;
+    }
+    
+    // If we reached here, we have something unexpected
+    console.warn('Unexpected updates format:', updates);
+    return [];
+  };
+
+  // Function to handle opening the ticket detail modal
+  const openTicketModal = (ticket: Ticket) => {
+    // Process ticket updates to ensure it's an array
+    const processedTicket = {
+      ...ticket,
+      updates: processUpdates(ticket.updates)
+    };
+    
+    setSelectedTicket(processedTicket);
+    setModalVisible(true);
+  };
+
+  // Function to close the modal
+  const closeModal = () => {
+    setModalVisible(false);
+    setSelectedTicket(null);
+  };
+
+  // Helper to get FontAwesome icon name safely
+  const getIconName = (iconName: string | undefined): IconName => {
+    // This cast is acceptable because we're using a fallback value
+    return (iconName as IconName) || 'circle';
   };
 
   return (
@@ -195,12 +291,25 @@ export default function TicketsScreen() {
                   <FontAwesome name="tag" size={14} color={colorScheme === 'dark' ? '#ADB5BD' : '#6B7280'} />
                   <Text className="ml-2">Subject</Text>
                 </Text>
-                <TextInput
+                <Controller
                   control={control}
                   name="subject"
-                  placeholder="Enter ticket subject"
-                  error={errors.subject?.message}
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <RNTextInput
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="Enter ticket subject"
+                      className="border border-neutral-300 dark:border-neutral-600 rounded-md p-2.5 bg-white dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200"
+                      placeholderTextColor={colorScheme === 'dark' ? '#A3A3A3' : '#737373'}
+                    />
+                  )}
                 />
+                {errors.subject?.message && (
+                  <Text className="text-red-500 text-xs mt-1">
+                    {errors.subject?.message}
+                  </Text>
+                )}
               </View>
               
               <View className="mb-4">
@@ -208,14 +317,28 @@ export default function TicketsScreen() {
                   <FontAwesome name="file-text" size={14} color={colorScheme === 'dark' ? '#ADB5BD' : '#6B7280'} />
                   <Text className="ml-2">Description</Text>
                 </Text>
-                <TextInput
+                <Controller
                   control={control}
                   name="description"
-                  placeholder="Describe your issue in detail"
-                  multiline
-                  numberOfLines={4}
-                  error={errors.description?.message}
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <RNTextInput
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="Describe your issue in detail"
+                      multiline
+                      numberOfLines={4}
+                      className="border border-neutral-300 dark:border-neutral-600 rounded-md p-2.5 bg-white dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200"
+                      placeholderTextColor={colorScheme === 'dark' ? '#A3A3A3' : '#737373'}
+                      textAlignVertical="top"
+                    />
+                  )}
                 />
+                {errors.description?.message && (
+                  <Text className="text-red-500 text-xs mt-1">
+                    {errors.description?.message}
+                  </Text>
+                )}
               </View>
               
               <View className="mb-4">
@@ -228,21 +351,21 @@ export default function TicketsScreen() {
                     <TouchableOpacity
                       key={priority}
                       className={`mr-2 mb-2 px-4 py-2 rounded-full border ${
-                        control._formValues.priority === priority
+                        watch('priority') === priority
                           ? priorityConfig[priority as keyof typeof priorityConfig].activeColor
                           : priorityConfig[priority as keyof typeof priorityConfig].color
                       } flex-row items-center`}
-                      onPress={() => control._setValue('priority', priority)}
+                      onPress={() => setValue('priority', priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT')}
                     >
                       <FontAwesome 
-                        name={priorityConfig[priority as keyof typeof priorityConfig].icon} 
+                        name={getIconName(priorityConfig[priority as keyof typeof priorityConfig].icon)} 
                         size={12} 
-                        color={control._formValues.priority === priority ? "#FFFFFF" : "#6B7280"} 
+                        color={watch('priority') === priority ? "#FFFFFF" : "#6B7280"} 
                         className="mr-1" 
                       />
                       <Text
                         className={`${
-                          control._formValues.priority === priority
+                          watch('priority') === priority
                             ? 'text-white'
                             : 'text-neutral-800 dark:text-white'
                         } ml-1`}
@@ -271,45 +394,208 @@ export default function TicketsScreen() {
           </Animated.View>
         )}
 
+        {/* Ticket Detail Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={closeModal}
+        >
+          <View className="flex-1 justify-end bg-black/0">
+            <View className="bg-white border-neutral-400 border-t-4 dark:bg-neutral-800 rounded-t-3xl h-5/6 p-4">
+              <View className="flex-row justify-between items-center mb-4">
+                <Text className="text-xl font-bold text-neutral-800 dark:text-white">Ticket Details</Text>
+                <TouchableOpacity onPress={closeModal} className="p-2">
+                  <FontAwesome name="times" size={24} color={colorScheme === 'dark' ? '#FFFFFF' : '#000000'} />
+                </TouchableOpacity>
+              </View>
+              
+              {selectedTicket && (
+                <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+                  {/* Ticket Header */}
+                  <View className="mb-4">
+                    <Text className="text-lg font-semibold text-neutral-800 dark:text-white mb-1">{selectedTicket.subject}</Text>
+                    <View className="flex-row justify-between items-center mb-2">
+                      <Text className="text-sm text-neutral-500 dark:text-neutral-400">
+                        ID: {selectedTicket.id.slice(0, 8)}
+                      </Text>
+                      <View className={`flex-row items-center px-2 py-1 rounded-full ${
+                        ticketStatus[selectedTicket.status]?.color || 'bg-neutral-100 text-neutral-800'
+                      }`}>
+                        <FontAwesome 
+                          name={getIconName(ticketStatus[selectedTicket.status]?.icon)} 
+                          size={12} 
+                          color={selectedTicket.status === 'OPEN' ? '#047857' : 
+                            selectedTicket.status === 'IN_PROGRESS' ? '#1E40AF' : 
+                              selectedTicket.status === 'RESOLVED' ? '#4B5563' : '#B91C1C'} 
+                        />
+                        <Text className={`text-xs font-medium ml-1 ${
+                          ticketStatus[selectedTicket.status]?.color || 'text-neutral-800'
+                        }`}>
+                          {ticketStatus[selectedTicket.status]?.label || selectedTicket.status}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    <View className="flex-row items-center mb-2">
+                      <FontAwesome name="calendar" size={14} color={colorScheme === 'dark' ? '#ADB5BD' : '#6B7280'} className="mr-2" />
+                      <Text className="text-sm text-neutral-600 dark:text-neutral-400">
+                        Created on {formatDate(selectedTicket.createdAt)}
+                      </Text>
+                    </View>
+                    
+                    <View className="flex-row items-center mb-3">
+                      <FontAwesome 
+                        name={getIconName(priorityConfig[selectedTicket.priority as keyof typeof priorityConfig]?.icon)} 
+                        size={14} 
+                        color={colorScheme === 'dark' ? '#ADB5BD' : '#6B7280'} 
+                        className="mr-2" 
+                      />
+                      <Text className="text-sm text-neutral-600 dark:text-neutral-400">
+                        Priority: {selectedTicket.priority}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  {/* Ticket Description */}
+                  <View className="bg-neutral-100 dark:bg-neutral-700 p-4 rounded-lg mb-6">
+                    <Text className="text-sm font-medium text-neutral-800 dark:text-white mb-2">Description</Text>
+                    <Text className="text-neutral-600 dark:text-neutral-300">{selectedTicket.description}</Text>
+                  </View>
+                  
+                  {/* Updates Timeline */}
+                  <View className="mb-4">
+                    <Text className="text-lg font-semibold text-neutral-800 dark:text-white mb-4">Updates History</Text>
+                    
+                    {selectedTicket.updates && Array.isArray(selectedTicket.updates) && selectedTicket.updates.length > 0 ? (
+                      selectedTicket.updates.map((update, index) => (
+                        <View key={index} className="mb-4 relative pl-8">
+                          {/* Timeline dot */}
+                          <View className="absolute left-0 top-0 w-4 h-4 bg-primary rounded-full items-center justify-center">
+                            <View className="w-2 h-2 bg-white rounded-full" />
+                          </View>
+                          
+                          {/* Timeline line */}
+                          {index < (selectedTicket.updates && Array.isArray(selectedTicket.updates) ? selectedTicket.updates.length : 0) - 1 && (
+                            <View className="absolute left-[7.5px] top-4 w-0.5 h-full bg-neutral-300 dark:bg-neutral-600" />
+                          )}
+                          
+                          {/* Update content */}
+                          <View className="bg-white dark:bg-neutral-700 p-3 rounded-lg border border-neutral-200 dark:border-neutral-600">
+                            <View className="flex-row justify-between items-center mb-2">
+                              <View className={`px-2 py-0.5 rounded-full ${ticketStatus[update.status]?.color || 'bg-neutral-100'}`}>
+                                <Text className="text-xs font-medium">{update.status}</Text>
+                              </View>
+                              {update.createdAt && (
+                                <Text className="text-xs text-neutral-500 dark:text-neutral-400">
+                                  {formatDate(update.createdAt)}
+                                </Text>
+                              )}
+                            </View>
+                            <Text className="text-sm text-neutral-700 dark:text-neutral-300">{update.message}</Text>
+                            {update.createdBy && (
+                              <Text className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 italic">
+                                - {update.createdBy}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                      ))
+                    ) : (
+                      <Text className="text-neutral-500 dark:text-neutral-400 text-center italic">No updates available</Text>
+                    )}
+                  </View>
+                  
+                  {/* Messages Section */}
+                  {selectedTicket.messages && selectedTicket.messages.length > 0 && (
+                    <View className="mb-4">
+                      <Text className="text-lg font-semibold text-neutral-800 dark:text-white mb-4">Conversation</Text>
+                      
+                      {selectedTicket.messages.map((message) => (
+                        <View 
+                          key={message.id ?? message.createdAt} 
+                          className={`mb-3 p-3 rounded-lg ${
+                            message.isFromSupport 
+                              ? 'bg-blue-50 dark:bg-blue-900/30 ml-4' 
+                              : 'bg-neutral-100 dark:bg-neutral-700 mr-4'
+                          }`}
+                        >
+                          <View className="flex-row justify-between items-center mb-1">
+                            <Text className="text-xs font-medium text-neutral-800 dark:text-neutral-300">
+                              {message.isFromSupport ? 'Support Team' : 'You'}
+                            </Text>
+                            <Text className="text-xs text-neutral-500 dark:text-neutral-400">
+                              {formatDate(message.createdAt)}
+                            </Text>
+                          </View>
+                          <Text className="text-sm text-neutral-700 dark:text-neutral-300">{message.content}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Close button */}
+                  <Button
+                    title="Close"
+                    variant="outline"
+                    icon="times"
+                    className="mt-3 mb-10"
+                    onPress={closeModal}
+                  />
+                </ScrollView>
+              )}
+            </View>
+          </View>
+        </Modal>
+
         {/* Tickets List with animation */}
         {isLoading ? (
           <View className="items-center justify-center py-12">
             <ActivityIndicator size="large" color="#2C59DB" />
           </View>
-        ) : tickets?.data && tickets.data.length > 0 ? (
+        ) : tickets && tickets.length > 0 ? (
           <>
             <Animated.View entering={FadeIn}>
               <View className="flex-row items-center mb-4">
                 <FontAwesome name="list-alt" size={16} color={colorScheme === 'dark' ? '#ADB5BD' : '#6B7280'} />
                 <Text className="text-neutral-600 dark:text-neutral-400 ml-2">
-                  {tickets.metadata?.total || 0} Support Tickets
+                  {metadata?.total || 0} Support Tickets
                 </Text>
               </View>
             </Animated.View>
             
-            {tickets.data.map((ticket: any, index: number) => (
+            {tickets.map((ticket: Ticket, index: number) => (
               <Animated.View 
                 key={ticket.id} 
                 entering={FadeInDown.delay(index * 100).springify()}
               >
-                <Link href={`/ticket/${ticket.id}`} asChild>
-                  <Card className="mb-4 overflow-hidden border-l-4 border-primary shadow-sm">
-                    <View className="p-4">
-                      <View className="flex-row justify-between items-center mb-2">
-                        <View className="flex-1">
+                <TouchableOpacity onPress={() => openTicketModal(ticket)}>
+                  <Card className="mb-3 p-0 overflow-hidden border-l-4 border-primary shadow-sm">
+                    <View className="p-3">
+                      {/* Header section with subject and status */}
+                      <View className="flex-row justify-between items-center mb-1">
+                        <View className="flex-1 mr-2">
                           <Text className="font-medium text-neutral-800 dark:text-white" numberOfLines={1}>
                             {ticket.subject}
                           </Text>
-                          <Text className="text-xs text-neutral-500 dark:text-neutral-400 flex-row items-center">
-                            <FontAwesome name="hashtag" size={10} color="#ADB5BD" />
-                            <Text> {ticket.id.slice(0, 8)} • {formatDate(ticket.createdAt)}</Text>
-                          </Text>
+                          <View className="flex-row items-center">
+                            <Text className="text-xs text-neutral-500 dark:text-neutral-400">
+                              ID: {ticket.id.slice(0, 8)} • {formatDate(ticket.createdAt)}
+                            </Text>
+                            {/* Badge for priority */}
+                            <View className="ml-2 px-1.5 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-700">
+                              <Text className="text-xs text-neutral-600 dark:text-neutral-400">
+                                {ticket.priority}
+                              </Text>
+                            </View>
+                          </View>
                         </View>
+                        
                         <View className={`flex-row items-center px-2 py-1 rounded-full ${
                           ticketStatus[ticket.status]?.color || 'bg-neutral-100 text-neutral-800'
                         }`}>
                           <FontAwesome 
-                            name={ticketStatus[ticket.status]?.icon || 'circle'} 
+                            name={getIconName(ticketStatus[ticket.status]?.icon)} 
                             size={10} 
                             color={ticket.status === 'OPEN' ? '#047857' : 
                               ticket.status === 'IN_PROGRESS' ? '#1E40AF' : 
@@ -323,55 +609,69 @@ export default function TicketsScreen() {
                         </View>
                       </View>
                       
-                      <Text className="text-neutral-600 dark:text-neutral-300 text-sm mb-3" numberOfLines={2}>
+                      {/* Description text */}
+                      <Text className="text-neutral-600 dark:text-neutral-300 text-xs mb-2" numberOfLines={2}>
                         {ticket.description}
                       </Text>
                       
-                      {/* Last message preview with animation */}
+                      {/* Last message preview with animation - only if message exists */}
                       {ticket.messages && ticket.messages.length > 0 && (
                         <Animated.View 
-                          className="bg-neutral-100 dark:bg-neutral-800 p-3 rounded-lg"
+                          className="bg-neutral-100 dark:bg-neutral-800 p-2 rounded-lg mb-1"
                           entering={SlideInRight.delay(200 + index * 50)}
                         >
-                          <View className="flex-row justify-between">
-                            <View className="flex-row items-center">
+                          <View className="flex-row justify-between items-center">
+                            <View className="flex-row items-center flex-1">
                               <FontAwesome 
-                                name={ticket.messages[0].isFromSupport ? "headset" : "user"} 
-                                size={12} 
+                                name={ticket.messages[0].isFromSupport ? "headset" as IconName : "user" as IconName} 
+                                size={10} 
                                 color="#ADB5BD" 
                               />
-                              <Text className="text-xs font-medium text-neutral-500 dark:text-neutral-400 ml-1">
-                                {ticket.messages[0].isFromSupport ? 'Support' : 'You'}
+                              <Text className="text-xs font-medium text-neutral-500 dark:text-neutral-400 ml-1 mr-1">
+                                {ticket.messages[0].isFromSupport ? 'Support' : 'You'}:
+                              </Text>
+                              <Text className="text-neutral-600 dark:text-neutral-300 text-xs flex-1" numberOfLines={1}>
+                                {ticket.messages[0].content}
                               </Text>
                             </View>
-                            <View className="flex-row items-center">
-                              <FontAwesome name="clock-o" size={12} color="#ADB5BD" />
-                              <Text className="text-xs text-neutral-500 dark:text-neutral-400 ml-1">
-                                {formatDate(ticket.messages[0].createdAt)}
-                              </Text>
-                            </View>
+                            <Text className="text-xs text-neutral-500 dark:text-neutral-400 ml-1">
+                              {new Date(ticket.messages[0].createdAt).toLocaleDateString()}
+                            </Text>
                           </View>
-                          <Text className="text-neutral-600 dark:text-neutral-300 text-sm" numberOfLines={2}>
-                            {ticket.messages[0].content}
-                          </Text>
                         </Animated.View>
                       )}
                       
-                      <View className="flex-row justify-between items-center mt-3">
+                      {/* Footer with stats and view button */}
+                      <View className="flex-row justify-between items-center mt-1 pt-1 border-t border-neutral-100 dark:border-neutral-700">
                         <View className="flex-row items-center">
-                          <FontAwesome name="comments" size={14} color="#ADB5BD" />
-                          <Text className="text-neutral-500 dark:text-neutral-400 text-xs ml-1">
-                            {ticket._count?.messages || 0} messages
-                          </Text>
+                          {/* Updates count */}
+                          <View className="flex-row items-center mr-3">
+                            <FontAwesome name="refresh" size={12} color="#ADB5BD" />
+                            <Text className="text-neutral-500 dark:text-neutral-400 text-xs ml-1">
+                              {Array.isArray(ticket.updates) ? ticket.updates.length : 0}
+                            </Text>
+                          </View>
+                          
+                          {/* Messages count */}
+                          <View className="flex-row items-center">
+                            <FontAwesome name="comments" size={12} color="#ADB5BD" />
+                            <Text className="text-neutral-500 dark:text-neutral-400 text-xs ml-1">
+                              {ticket.messages?.length || 0}
+                            </Text>
+                          </View>
                         </View>
-                        <View className="flex-row items-center">
-                          <Text className="text-primary font-medium text-sm mr-1">View Details</Text>
-                          <FontAwesome name="chevron-right" size={12} color="#2C59DB" />
-                        </View>
+                        
+                        <TouchableOpacity
+                          onPress={() => openTicketModal(ticket)}
+                          className="flex-row items-center bg-primary/10 dark:bg-primary/20 px-2 py-1 rounded-full"
+                        >
+                          <Text className="text-primary font-medium text-xs mr-1">Details</Text>
+                          <FontAwesome name="chevron-right" size={8} color="#2C59DB" />
+                        </TouchableOpacity>
                       </View>
                     </View>
                   </Card>
-                </Link>
+                </TouchableOpacity>
               </Animated.View>
             ))}
           </>
@@ -382,7 +682,7 @@ export default function TicketsScreen() {
           >
             <FontAwesome name="ticket" size={64} color="#ADB5BD" className="mb-4" />
             <Text className="text-neutral-500 dark:text-neutral-400 mt-2 text-center text-lg">
-              You don't have any support tickets yet
+              You don&apos;t have any support tickets yet
             </Text>
             <Text className="text-neutral-400 dark:text-neutral-500 text-center mb-4">
               Create a ticket if you need any assistance

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView, SafeAreaView, TouchableOpacity, Image, Alert } from 'react-native';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import { Link, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -8,11 +8,8 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useUserStore } from '@/stores/user.store';
-import { useApiClient } from '@/lib/api';
-import { ApiResponse } from '@/types/common';
-import { Order, Payment } from '@prisma/client';
-import { useAuth } from '@clerk/clerk-expo';
-import { useUserImageQuery } from '@/lib/hooks/use-queries';
+import { useAuth, useUser } from '@clerk/clerk-expo';
+import { useOrders, usePayments } from '@/lib/hooks/use-queries';
 
 interface AccountOption {
   id: string;
@@ -25,59 +22,41 @@ interface AccountOption {
 
 export default function AccountScreen() {
   const colorScheme = useColorScheme();
-  const { user, clearUser, userId } = useUserStore();
+  const { user, clearUser } = useUserStore();
   const router = useRouter();
-  const api = useApiClient();
+
   const { signOut } = useAuth();
   const [isLoadingUser, setIsLoadingUser] = React.useState(true);
   const [userData, setUserData] = React.useState(user);
-  const [userImageState, setUserImageState] = React.useState<string | null>(null);
+
+  const { user: clerkUser } = useUser();
 
   React.useEffect(() => {
     setUserData(user);
     setIsLoadingUser(false);
   }, [user]);
 
-  const { data: userImage } = useUserImageQuery(user?.clerkId as string);
-
-  React.useEffect(() => {
-    if (userImage) {
-      setUserImageState(userImage.data);
-    }
-  }, [userImage]);
-
   // Recent orders query - limited to 3
-  const { data: recentOrders, isLoading: isLoadingOrders } = useQuery({
-    queryKey: ['orders', 'recent', userId],
-    queryFn: async () => {
-      if (!userId) return null;
-      const response = await api.post('/orders', {
-        take: 3,
-        where: { customerId: userId },
-        orderBy: { createdAt: 'desc' },
-        include: {
-          orderItems: true
-        }
-      });
-      return (response as ApiResponse<Order[]>).data;
-    },
-    enabled: !!userId,
+  const { data: recentOrdersData, isLoading: isLoadingOrders } = useOrders({
+    take: 3,
+    limit: 3,
+    where: { customerId: user?.id as string },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      orderItems: true
+    }
   });
+
+  const recentOrders = recentOrdersData?.data;
 
   // Recent payments query - limited to 3
-  const { data: recentPayments, isLoading: isLoadingPayments } = useQuery({
-    queryKey: ['payments', 'recent', userId],
-    queryFn: async () => {
-      if (!userId) return null;
-      const response = await api.post('/payments', {
-        take: 3,
-        where: { userId: userId },
-        orderBy: { createdAt: 'desc' },
-      });
-      return (response as ApiResponse<Payment[]>).data;
-    },
-    enabled: !!userId,
+  const { data: recentPaymentsData, isLoading: isLoadingPayments } = usePayments({
+    take: 3,
+    where: { userId: user?.id as string },
+    orderBy: { createdAt: 'desc' },
   });
+
+  const recentPayments = recentPaymentsData?.data;
 
   // Logout mutation
   const logoutMutation = useMutation({
@@ -165,7 +144,7 @@ export default function AccountScreen() {
           <View className="flex-row items-center">
             <Image 
               source={{ 
-                uri: userImageState ?? `https://ui-avatars.com/api/?name=${user?.firstName ?? 'User'}&background=2C59DB&color=fff` 
+                uri: clerkUser?.imageUrl ?? `https://ui-avatars.com/api/?name=${user?.firstName ?? 'User'}&background=2C59DB&color=fff` 
               }}
               className="w-20 h-20 rounded-full border-2 border-white"
             />
@@ -215,10 +194,10 @@ export default function AccountScreen() {
                 <Card className="p-4 mb-3">
                   <View className="flex-row justify-between items-center mb-2">
                     <Text className="font-medium text-neutral-800 dark:text-white">
-                      Order #{order.id}
+                      Order #{order.id.slice(0, 6)}
                     </Text>
                     <Text className={`text-xs font-medium px-2 py-1 rounded-full ${
-                      order.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                      order.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
                         order.status === 'PROCESSING' ? 'bg-blue-100 text-blue-800' :
                           order.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
                             'bg-yellow-100 text-yellow-800'
@@ -242,7 +221,7 @@ export default function AccountScreen() {
             <Card className="p-4 items-center justify-center">
               <FontAwesome name="shopping-bag" size={24} color="#ADB5BD" className="mb-2" />
               <Text className="text-neutral-500 dark:text-neutral-400 text-center">
-                You don't have any orders yet
+                You don&apos;t have any orders yet
               </Text>
               <Link href="/products" asChild>
                 <Button

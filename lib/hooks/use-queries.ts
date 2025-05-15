@@ -1,25 +1,25 @@
 import { useQuery } from '@tanstack/react-query';
 import { useApiClient } from '../api';
-import type { Product, Order, User } from '@prisma/client';
-import { QueryParams } from '@/types/common';
+import type { Product, Order, User, Payment } from '@prisma/client';
+import { ApiResponse, QueryParams } from '@/types/common';
 
 export function useProducts(params: QueryParams) {
   const api = useApiClient();
   
   return useQuery({
     queryKey: ['products'],
-    queryFn: () => api.post<Product[]>('/products', {
+    queryFn: () => api.post<ApiResponse<Product[]>>('/products', {
       ...params,
     }),
   });
 }
 
-export function useProduct(id: string, params: QueryParams) {
+export function useProduct(id: string, params: QueryParams = {}) {
   const api = useApiClient();
   
   return useQuery({
     queryKey: ['products', id],
-    queryFn: () => api.post<Product>(`/products/${id}`, {
+    queryFn: () => api.post<ApiResponse<Product>>(`/products/${id}`, {
       ...params
     }),
     enabled: !!id,
@@ -28,10 +28,10 @@ export function useProduct(id: string, params: QueryParams) {
 
 export function useOrders(params: QueryParams) {
   const api = useApiClient();
-  
+
   return useQuery({
     queryKey: ['orders'],
-    queryFn: () => api.post<Order[]>('/orders', {
+    queryFn: () => api.post<ApiResponse<Order[]>>('/orders', {
       ...params
     }),
   });
@@ -42,19 +42,43 @@ export function useOrder(id: string, params: QueryParams) {
   
   return useQuery({
     queryKey: ['orders', id],
-    queryFn: () => api.post<Order>(`/orders/${id}`, {
+    queryFn: () => api.post<ApiResponse<Order>>(`/orders/${id}`, {
       ...params
     }),
     enabled: !!id,
   });
 }
 
+export function usePayments(params: QueryParams) {
+  const api = useApiClient();
+
+  return useQuery({
+    queryKey: ['payments'],
+    queryFn: () => api.post<ApiResponse<Payment[]>>('/payments', {
+      ...params
+    }),
+  });
+}
+
+export function usePayment(id: string, params: QueryParams) {
+  const api = useApiClient();
+
+  return useQuery({
+    queryKey: ['payments', id],
+    queryFn: () => api.post<ApiResponse<Payment>>(`/payments/${id}`, {
+      ...params
+    }),
+    enabled: !!id,
+  });
+}
+
+      
 export function useProfile(id: string) {
   const api = useApiClient();
   
   return useQuery({
-    queryKey: ['profile'],
-    queryFn: () => api.get<User>(`/users/${id}`),
+    queryKey: ['profile', id],
+    queryFn: () => api.get<ApiResponse<User>>(`/users/${id}`),
     enabled: !!id,
   });
 }
@@ -63,8 +87,8 @@ export function useUserImageQuery(id: string) {
   const api = useApiClient();
   
   return useQuery({
-    queryKey: ['user-image'],
-    queryFn: () => api.get<string>(`/users/image/${id}`),
+    queryKey: ['user-image', id],
+    queryFn: () => api.get<ApiResponse<string>>(`/users/image/${id}`),
     enabled: !!id,
   });
 }

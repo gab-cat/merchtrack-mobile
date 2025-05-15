@@ -1,8 +1,8 @@
 export type ApiResponse<T> = {
     success: boolean;
-    message: string;
-    data: T;
-    metadata: {
+    message?: string;
+    data?: T;
+    metadata?: {
         total: number;
         hasNextPage: boolean;
         hasPreviousPage: boolean;
