@@ -78,7 +78,7 @@ export default function TabLayout() {
             <TabBarIcon name="home" color={color} focused={focused} />
           ),
           headerRight: () => (
-            <Link href="/modal" asChild>
+            <Link href="/my_cart" asChild>
               <Pressable className="mr-4">
                 {({ pressed }) => (
                   <FontAwesome

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, Image, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, Stack, router } from 'expo-router';
+import { useLocalSearchParams, Stack, router, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useProduct } from '@/lib/hooks/use-queries';
@@ -13,7 +13,6 @@ import { useRolePricing } from '@/utils/use-role-pricing';
 import { parseHtmlForDisplay } from '@/utils/html-parser';
 import Avatar from '@/components/shared/avatar';
 import { useUserStore } from '@/stores/user.store';
-
 
 
 
@@ -31,6 +30,8 @@ interface ExtendedProduct extends PrismaProduct {
     college?: string;
   };
 }
+
+// const router = useRouter();
 
 const ProductDetailScreen = () => {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -258,7 +259,16 @@ const ProductDetailScreen = () => {
               title={selectedVariant?.inventory === 0 ? "Out of Stock" : "Add to Cart"} 
               icon="shopping-cart" 
               className={`w-full py-3 rounded-lg ${selectedVariant?.inventory === 0 ? 'bg-neutral-400' : 'bg-primary'}`}
-              onPress={() => console.log('Add to cart pressed for', product.id, 'variant:', selectedVariant?.id)}
+              // onPress={() => console.log('Add to cart pressed for', product.id, 'variant:', selectedVariant?.id)}
+              onPress={() => {
+                router.push({
+                  pathname: '/my_cart',
+                  params: {
+                    productId: product.id,
+                    variantId: selectedVariant?.id,
+                  },
+                });
+              }}
               disabled={selectedVariant?.inventory === 0}
             />
           </View>
