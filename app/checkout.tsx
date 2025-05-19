@@ -30,7 +30,7 @@ const formatCurrency = (amount: number): string => {
 };
 
 const CheckoutScreen = () => {
-  const { items, getTotalPrice, clearCart } = useCartStore();
+  const { items, getTotalPrice } = useCartStore();
   const colorScheme = useColorScheme();
   const systemColorScheme = RNUseColorScheme();
   const isDark = colorScheme === 'dark' || (systemColorScheme === 'dark');
@@ -66,21 +66,15 @@ const CheckoutScreen = () => {
       timestamp: new Date().toISOString()
     });
     
-    // Show success message
-    Alert.alert(
-      "Order Placed Successfully",
-      "Your order has been received and is being processed.",
-      [
-        { 
-          text: "OK", 
-          onPress: () => {
-            // Clear cart and navigate home
-            clearCart();
-            router.replace("/(tabs)");
-          }
-        }
-      ]
-    );
+    // Navigate to success page with order details
+    const encodedItems = encodeURIComponent(JSON.stringify(items));
+    router.push({
+      pathname: '/success',
+      params: {
+        orderItems: encodedItems,
+        total: total.toString()
+      }
+    });
   };
 
   // Handle empty cart

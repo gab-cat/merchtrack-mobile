@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { 
-  Platform, 
   StyleSheet, 
   ScrollView, 
   Image, 
   TouchableOpacity, 
   TextInput,
-  Alert
+  Alert,
+  useColorScheme
 } from 'react-native';
 import { router, Stack } from 'expo-router';
-import { Text, View } from '@/components/Themed';
+import { Text, View, useThemeColor } from '@/components/Themed';
 import { useCartStore } from '@/stores/cart.store';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Button } from '@/components/ui/Button';
@@ -30,6 +30,18 @@ export default function CartModal() {
   const { items, removeItem, updateQuantity, updateNotes, getTotalPrice, clearCart } = useCartStore();
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [noteText, setNoteText] = useState<string>('');
+  const colorScheme = useColorScheme();
+  
+  // Get theme colors
+  const backgroundColor = useThemeColor({ light: '#f8f8f8', dark: '#121212' }, 'background');
+  const cardBackground = useThemeColor({ light: 'white', dark: '#1c1c1c' }, 'background');
+  const textColor = useThemeColor({ light: '#333', dark: '#e0e0e0' }, 'text');
+  const secondaryTextColor = useThemeColor({ light: '#666', dark: '#a0a0a0' }, 'text');
+  const accentColor = '#2C59DB';
+  const dangerColor = '#FF3B30';
+  const borderColor = useThemeColor({ light: '#f0f0f0', dark: '#2c2c2c' }, 'background');
+  const iconColor = useThemeColor({ light: '#888', dark: '#a0a0a0' }, 'text');
+  const buttonBgColor = useThemeColor({ light: '#f0f0f0', dark: '#333333' }, 'background');
 
   // Format price for display
   const formattedTotal = formatCurrency(getTotalPrice());
@@ -37,24 +49,24 @@ export default function CartModal() {
   // Handle empty cart
   if (items.length === 0) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor }]}>
         <Stack.Screen 
           options={{
             title: 'Cart',
             headerLeft: () => (
               <TouchableOpacity onPress={() => router.back()} className="ml-2">
-                <FontAwesome name="arrow-left" size={22} color="#888" />
+                <FontAwesome name="arrow-left" size={22} color={iconColor} />
               </TouchableOpacity>
             ),
             headerRight: () => (
               <TouchableOpacity onPress={() => router.back()}>
-                <FontAwesome name="close" size={24} color="#888" />
+                <FontAwesome name="close" size={24} color={iconColor} />
               </TouchableOpacity>
             ),
           }}
         />
-        <View style={styles.emptyCart}>
-          <FontAwesome name="shopping-cart" size={64} color="#ccc" />
+        <View style={[styles.emptyCart, { backgroundColor }]}>
+          <FontAwesome name="shopping-cart" size={64} color={iconColor} />
           <Text style={styles.emptyText}>Your cart is empty</Text>
           <Button 
             title="Continue Shopping" 
@@ -67,26 +79,26 @@ export default function CartModal() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor }]}>
       <Stack.Screen 
         options={{
           title: 'Cart',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} className="ml-2">
-              <FontAwesome name="arrow-left" size={22} color="#888" />
+              <FontAwesome name="arrow-left" size={22} color={iconColor} />
             </TouchableOpacity>
           ),
           headerRight: () => (
             <TouchableOpacity onPress={() => router.back()}>
-              <FontAwesome name="close" size={24} color="#888" />
+              <FontAwesome name="close" size={24} color={iconColor} />
             </TouchableOpacity>
           ),
         }}
       />
       
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.cartHeader}>
-          <Text style={styles.cartTitle}>Cart</Text>
+        <View style={[styles.cartHeader, { backgroundColor }]}>
+          <Text style={[styles.cartTitle, { color: textColor }]}>Cart</Text>
           <TouchableOpacity 
             style={styles.clearButton} 
             onPress={() => {
@@ -100,17 +112,17 @@ export default function CartModal() {
               );
             }}
           >
-            <Text style={styles.clearButtonText}>Clear All</Text>
+            <Text style={[styles.clearButtonText, { color: dangerColor }]}>Clear All</Text>
           </TouchableOpacity>
         </View>
 
         {items.map((item, index) => (
           <Animated.View 
             key={item.id} 
-            style={styles.cartItem}
+            style={[styles.cartItem, { backgroundColor: cardBackground }]}
             entering={FadeInDown.delay(index * 100).duration(300)}
           >
-            <View style={styles.cartItemRow}>
+            <View style={[styles.cartItemRow, { backgroundColor: cardBackground }]}>
               <Image 
                 source={{ 
                   uri: item.imageUrl || 'https://placehold.co/600x400/E0E0E0/B0B0B0/png?text=Product+Image'
@@ -118,9 +130,9 @@ export default function CartModal() {
                 style={styles.cartItemImage} 
               />
               
-              <View style={styles.cartItemInfo}>
-                <View style={styles.cartItemTop}>
-                  <Text style={styles.cartItemName} numberOfLines={1}>{item.name}</Text>
+              <View style={[styles.cartItemInfo, { backgroundColor: cardBackground }]}>
+                <View style={[styles.cartItemTop, { backgroundColor: cardBackground }]}>
+                  <Text style={[styles.cartItemName, { color: textColor }]} numberOfLines={1}>{item.name}</Text>
                   <TouchableOpacity 
                     onPress={() => {
                       Alert.alert(
@@ -133,50 +145,55 @@ export default function CartModal() {
                       );
                     }}
                   >
-                    <FontAwesome name="trash-o" size={22} color="#FF3B30" />
+                    <FontAwesome name="trash-o" size={22} color={dangerColor} />
                   </TouchableOpacity>
                 </View>
                 
                 {item.variantName && (
-                  <Text style={styles.cartItemVariant}>{item.variantName}</Text>
+                  <Text style={[styles.cartItemVariant, { color: secondaryTextColor }]}>{item.variantName}</Text>
                 )}
                 
                 <Text style={styles.cartItemPrice}>{formatCurrency(item.price)}</Text>
                 
-                <View style={styles.quantityContainer}>
+                <View style={[styles.quantityContainer, { backgroundColor: cardBackground }]}>
                   <TouchableOpacity 
-                    style={styles.quantityButton}
+                    style={[styles.quantityButton, { backgroundColor: buttonBgColor }]}
                     onPress={() => updateQuantity(item.id, item.quantity - 1)}
                     disabled={item.quantity <= 1}
                   >
-                    <FontAwesome name="minus" size={14} color={item.quantity <= 1 ? "#ccc" : "#2C59DB"} />
+                    <FontAwesome name="minus" size={14} color={item.quantity <= 1 ? iconColor : accentColor} />
                   </TouchableOpacity>
                   
-                  <Text style={styles.quantityText}>{item.quantity}</Text>
+                  <Text style={[styles.quantityText, { color: textColor }]}>{item.quantity}</Text>
                   
                   <TouchableOpacity 
-                    style={styles.quantityButton}
+                    style={[styles.quantityButton, { backgroundColor: buttonBgColor }]}
                     onPress={() => updateQuantity(item.id, item.quantity + 1)}
                   >
-                    <FontAwesome name="plus" size={14} color="#2C59DB" />
+                    <FontAwesome name="plus" size={14} color={accentColor} />
                   </TouchableOpacity>
                 </View>
               </View>
             </View>
             
             {/* Notes section */}
-            <View style={styles.notesSection}>
+            <View style={[styles.notesSection, { borderTopColor: borderColor, backgroundColor: cardBackground }]}>
               {editingNotes === item.id ? (
-                <View style={styles.notesEdit}>
+                <View style={[styles.notesEdit, { backgroundColor: cardBackground }]}>
                   <TextInput
-                    style={styles.notesInput}
+                    style={[styles.notesInput, { 
+                      borderColor: borderColor,
+                      color: textColor,
+                      backgroundColor: colorScheme === 'dark' ? '#2c2c2c' : 'white'
+                    }]}
                     placeholder="Add note (optional)"
+                    placeholderTextColor={secondaryTextColor}
                     value={noteText}
                     onChangeText={setNoteText}
                     multiline
                     autoFocus
                   />
-                  <View style={styles.notesButtons}>
+                  <View style={[styles.notesButtons, { backgroundColor: cardBackground }]}>
                     <TouchableOpacity 
                       style={styles.notesCancelButton}
                       onPress={() => {
@@ -184,7 +201,7 @@ export default function CartModal() {
                         setNoteText('');
                       }}
                     >
-                      <Text style={styles.notesCancelText}>Cancel</Text>
+                      <Text style={[styles.notesCancelText, { color: iconColor }]}>Cancel</Text>
                     </TouchableOpacity>
                     <TouchableOpacity 
                       style={styles.notesSaveButton}
@@ -199,14 +216,14 @@ export default function CartModal() {
                 </View>
               ) : (
                 <TouchableOpacity 
-                  style={styles.notesButton}
+                  style={[styles.notesButton, { backgroundColor: cardBackground }]}
                   onPress={() => {
                     setNoteText(item.notes || '');
                     setEditingNotes(item.id);
                   }}
                 >
-                  <FontAwesome name="pencil" size={14} color="#888" style={styles.notesIcon} />
-                  <Text style={styles.notesText}>
+                  <FontAwesome name="pencil" size={14} color={iconColor} style={styles.notesIcon} />
+                  <Text style={[styles.notesText, { color: iconColor }]}>
                     {item.notes ? item.notes : 'Add note'}
                   </Text>
                 </TouchableOpacity>
@@ -216,9 +233,9 @@ export default function CartModal() {
         ))}
       </ScrollView>
       
-      <View style={styles.cartFooter}>
-        <View style={styles.totalSection}>
-          <Text style={styles.totalLabel}>Total</Text>
+      <View style={[styles.cartFooter, { backgroundColor: cardBackground, borderTopColor: borderColor }]}>
+        <View style={[styles.totalSection, { backgroundColor: cardBackground }]}>
+          <Text style={[styles.totalLabel, { color: textColor }]}>Total</Text>
           <Text style={styles.totalAmount}>{formattedTotal}</Text>
         </View>
         
@@ -232,8 +249,7 @@ export default function CartModal() {
         />
       </View>
 
-      {/* Use a light status bar on iOS to account for the black space above the modal */}
-      <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </View>
   );
 }
@@ -241,7 +257,6 @@ export default function CartModal() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f8f8',
   },
   scrollView: {
     flex: 1,
@@ -258,17 +273,14 @@ const styles = StyleSheet.create({
   cartTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
   },
   clearButton: {
     padding: 8,
   },
   clearButtonText: {
-    color: '#FF3B30',
     fontSize: 14,
   },
   cartItem: {
-    backgroundColor: 'white',
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
@@ -299,13 +311,11 @@ const styles = StyleSheet.create({
   cartItemName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     flex: 1,
     paddingRight: 8,
   },
   cartItemVariant: {
     fontSize: 14,
-    color: '#666',
     marginTop: 2,
   },
   cartItemPrice: {
@@ -323,7 +333,6 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -337,7 +346,6 @@ const styles = StyleSheet.create({
   notesSection: {
     marginTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
     paddingTop: 8,
   },
   notesButton: {
@@ -349,7 +357,6 @@ const styles = StyleSheet.create({
   },
   notesText: {
     fontSize: 14,
-    color: '#888',
     flex: 1,
   },
   notesEdit: {
@@ -357,7 +364,6 @@ const styles = StyleSheet.create({
   },
   notesInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     padding: 10,
     fontSize: 14,
@@ -374,7 +380,6 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   notesCancelText: {
-    color: '#888',
     fontSize: 14,
   },
   notesSaveButton: {
@@ -388,10 +393,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   cartFooter: {
-    backgroundColor: 'white',
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
   },
   totalSection: {
     flexDirection: 'row',
@@ -401,7 +404,6 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontSize: 18,
     fontWeight: '500',
-    color: '#333',
   },
   totalAmount: {
     fontSize: 20,

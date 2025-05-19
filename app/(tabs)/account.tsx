@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, ScrollView, SafeAreaView, TouchableOpacity, Image, Alert } from 'react-native';
 import { useMutation } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useColorScheme } from '@/components/useColorScheme';
 import { Button } from '@/components/ui/Button';
@@ -11,11 +11,30 @@ import { useUserStore } from '@/stores/user.store';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useOrders, usePayments } from '@/lib/hooks/use-queries';
 
+// Define allowed routes for type checking
+type AppRoute = '/' | '/account/orders' | '/account/payments' | '/products';
+
+// Define Payment interface - using unknown for metadata to avoid any
+interface Payment {
+  id: string;
+  userId: string;
+  orderId: string;
+  processedById?: string | null;
+  paymentDate: Date;
+  amount: number | { toFixed: (digits: number) => string };
+  paymentStatus: string;
+  referenceNo?: string;
+  transactionId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  metadata?: unknown;
+}
+
 interface AccountOption {
   id: string;
   title: string;
   icon: React.ComponentProps<typeof FontAwesome>['name'];
-  route?: string;
+  route?: AppRoute;
   action?: () => void;
   description?: string;
 }
@@ -84,7 +103,7 @@ export default function AccountScreen() {
       id: 'profile',
       title: 'Edit Profile',
       icon: 'user-circle',
-      route: '/account/profile',
+      route: '/',
       description: 'Update your personal information and preferences'
     },
     {
@@ -105,21 +124,21 @@ export default function AccountScreen() {
       id: 'addresses',
       title: 'Shipping Addresses',
       icon: 'map-marker',
-      route: '/account/addresses',
+      route: '/',
       description: 'Manage your shipping addresses'
     },
     {
       id: 'settings',
       title: 'Account Settings',
       icon: 'cog',
-      route: '/account/settings',
+      route: '/',
       description: 'Notification preferences, privacy settings, and more'
     },
     {
       id: 'help',
       title: 'Help & Support',
       icon: 'question-circle',
-      route: '/account/help',
+      route: '/',
       description: 'Get help with orders, returns, and other issues'
     },
     {
@@ -133,6 +152,21 @@ export default function AccountScreen() {
 
   const formatDate = (dateString: string | number | Date) => {
     return new Date(dateString).toLocaleDateString(undefined);
+  };
+
+  // Helper function to get payment status class
+  const getPaymentStatusClass = (status: string) => {
+    if (status === 'PAID' || status === 'COMPLETED' || status === 'VERIFIED') {
+      return 'bg-green-100 text-green-800';
+    } else if (status === 'PENDING' || status === 'PROCESSING') {
+      return 'bg-yellow-100 text-yellow-800';
+    } else if (status === 'FAILED' || status === 'CANCELLED' || status === 'DECLINED') {
+      return 'bg-red-100 text-red-800';
+    } else if (status === 'REFUNDED' || status === 'REFUND_PENDING') {
+      return 'bg-blue-100 text-blue-800';
+    } else {
+      return 'bg-neutral-100 text-neutral-800';
+    }
   };
 
   return (
@@ -155,12 +189,10 @@ export default function AccountScreen() {
               <Text className="text-white/80">
                 {userData?.email ?? 'No email provided'}
               </Text>
-              <Link href="/account/profile" asChild>
-                <TouchableOpacity className="flex-row items-center mt-2">
-                  <Text className="text-white mr-1">Edit Profile</Text>
-                  <FontAwesome name="pencil" size={12} color="#FFFFFF" />
-                </TouchableOpacity>
-              </Link>
+              <TouchableOpacity className="flex-row items-center mt-2" onPress={() => router.push('/')}>
+                <Text className="text-white mr-1">Edit Profile</Text>
+                <FontAwesome name="pencil" size={12} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -171,7 +203,7 @@ export default function AccountScreen() {
             <Text className="text-lg font-bold text-neutral-800 dark:text-white">
               Recent Orders
             </Text>
-            <Link href="/account/orders" asChild>
+            <TouchableOpacity onPress={() => router.push('/account/orders' as AppRoute)}>
               <Button
                 title="View All"
                 variant="outline"
@@ -181,7 +213,7 @@ export default function AccountScreen() {
                 onPress={() => {}}
                 className="border-0"
               />
-            </Link>
+            </TouchableOpacity>
           </View>
           
           {isLoadingOrders ? (
@@ -190,7 +222,13 @@ export default function AccountScreen() {
             </Card>
           ) : recentOrders && recentOrders.length > 0 ? (
             recentOrders.map((order) => (
-              <Link key={order.id} href={`/account/orders/${order.id}`} asChild>
+              <TouchableOpacity 
+                key={order.id} 
+                onPress={() => router.push({
+                  pathname: '/track-order',
+                  params: { orderId: order.id }
+                })}
+              >
                 <Card className="p-4 mb-3">
                   <View className="flex-row justify-between items-center mb-2">
                     <Text className="font-medium text-neutral-800 dark:text-white">
@@ -215,7 +253,7 @@ export default function AccountScreen() {
                     <FontAwesome name="chevron-right" size={14} color="#ADB5BD" />
                   </View>
                 </Card>
-              </Link>
+              </TouchableOpacity>
             ))
           ) : (
             <Card className="p-4 items-center justify-center">
@@ -223,7 +261,7 @@ export default function AccountScreen() {
               <Text className="text-neutral-500 dark:text-neutral-400 text-center">
                 You don&apos;t have any orders yet
               </Text>
-              <Link href="/products" asChild>
+              <TouchableOpacity onPress={() => router.push('/products' as AppRoute)}>
                 <Button
                   title="Start Shopping"
                   variant="outline"
@@ -232,7 +270,7 @@ export default function AccountScreen() {
                   onPress={() => {}}
                   className="mt-2"
                 />
-              </Link>
+              </TouchableOpacity>
             </Card>
           )}
         </View>
@@ -243,7 +281,7 @@ export default function AccountScreen() {
             <Text className="text-lg font-bold text-neutral-800 dark:text-white">
               Recent Payments
             </Text>
-            <Link href="/account/payments" asChild>
+            <TouchableOpacity onPress={() => router.push('/account/payments' as AppRoute)}>
               <Button
                 title="View All"
                 variant="outline"
@@ -253,7 +291,7 @@ export default function AccountScreen() {
                 onPress={() => {}}
                 className="border-0"
               />
-            </Link>
+            </TouchableOpacity>
           </View>
           
           {isLoadingPayments ? (
@@ -261,28 +299,22 @@ export default function AccountScreen() {
               <Text className="text-neutral-500">Loading your payments...</Text>
             </Card>
           ) : recentPayments && recentPayments.length > 0 ? (
-            recentPayments.map((payment) => (
+            (recentPayments as unknown as Payment[]).map((payment) => (
               <Card key={payment.id} className="p-4 mb-3">
                 <View className="flex-row justify-between items-center mb-2">
                   <View className="flex-row items-center">
                     <FontAwesome 
-                      name={payment.method === 'CREDIT_CARD' ? 'credit-card' : 
-                        payment.method === 'PAYPAL' ? 'paypal' : 'money'}
+                      name="credit-card"
                       size={16} 
                       color="#2C59DB" 
                       style={{ marginRight: 8 }}
                     />
                     <Text className="font-medium text-neutral-800 dark:text-white">
-                      {payment.method} {payment.last4 ? `****${payment.last4}` : ''}
+                      Payment #{payment.id.slice(0, 6)}
                     </Text>
                   </View>
-                  <Text className={`text-xs font-medium px-2 py-1 rounded-full ${
-                    payment.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                      payment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                        payment.status === 'FAILED' ? 'bg-red-100 text-red-800' :
-                          'bg-neutral-100 text-neutral-800'
-                  }`}>
-                    {payment.status}
+                  <Text className={`text-xs font-medium px-2 py-1 rounded-full ${getPaymentStatusClass(payment.paymentStatus)}`}>
+                    {payment.paymentStatus || 'Unknown'}
                   </Text>
                 </View>
                 <View className="flex-row justify-between items-center">
@@ -313,7 +345,13 @@ export default function AccountScreen() {
           {accountOptions.map((option) => (
             <TouchableOpacity
               key={option.id}
-              onPress={() => option.action ? option.action() : router.push(option.route)}
+              onPress={() => {
+                if (option.action) {
+                  option.action();
+                } else if (option.route) {
+                  router.push(option.route);
+                }
+              }}
               className={`flex-row items-center mb-3 p-4 bg-white dark:bg-neutral-800 rounded-xl ${option.id === 'logout' ? 'border border-red-300 dark:border-red-800' : ''}`}
             >
               <View className={`w-10 h-10 rounded-full flex items-center justify-center ${option.id === 'logout' ? 'bg-red-100 dark:bg-red-900/30' : 'bg-primary/10'}`}>
