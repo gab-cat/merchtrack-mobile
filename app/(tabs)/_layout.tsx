@@ -1,11 +1,41 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Link, Tabs } from 'expo-router';
-import { Pressable } from 'react-native';
+import { Pressable, View, Text } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { useCartStore } from '@/stores/cart.store';
+
+// Cart badge component
+function CartBadge() {
+  const { getTotalItems } = useCartStore();
+  const itemCount = getTotalItems();
+  
+  if (itemCount === 0) {
+    return (
+      <FontAwesome
+        name="shopping-cart"
+        size={25}
+        color='#FFFFFF'
+      />
+    );
+  }
+  
+  return (
+    <View className="relative">
+      <FontAwesome
+        name="shopping-cart"
+        size={25}
+        color='#FFFFFF'
+      />
+      <View className="absolute -top-2 -right-4 bg-red-500 rounded-full w-6 h-6 items-center justify-center">
+        <Text className="text-white text-xs font-bold">{itemCount > 99 ? '99+' : itemCount}</Text>
+      </View>
+    </View>
+  );
+}
 
 function TabBarIcon(props: Readonly<{
   name: React.ComponentProps<typeof FontAwesome>['name'];
@@ -68,7 +98,17 @@ export default function TabLayout() {
           fontWeight: '600',
         },
         headerShadowVisible: false,
-        
+        headerRight: () => (
+          <Link href="/modal" asChild>
+            <Pressable className="mr-4">
+              {({ pressed }) => (
+                <View style={{ opacity: pressed ? 0.5 : 1 }}>
+                  <CartBadge />
+                </View>
+              )}
+            </Pressable>
+          </Link>
+        ),
       }}>
       <Tabs.Screen
         name="index"
@@ -76,20 +116,6 @@ export default function TabLayout() {
           title: 'Home',
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name="home" color={color} focused={focused} />
-          ),
-          headerRight: () => (
-            <Link href="/my_cart" asChild>
-              <Pressable className="mr-4">
-                {({ pressed }) => (
-                  <FontAwesome
-                    name="cart-plus"
-                    size={25}
-                    color='#FFFFFF'
-                    style={{ opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
           ),
         }}
       />
