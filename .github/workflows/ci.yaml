@@ -14,10 +14,23 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install Dependencies
         run: bun install
@@ -25,14 +38,11 @@ jobs:
       - name: Install EAS CLI
         run: bun add --dev eas-cli
 
-      - name: Build Android APK Locally
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: |
-          npx eas build --platform android --local --non-interactive --output=./app.apk
+      - name: Build Android app
+        run: eas build --platform android --profile preview --local --output ${{ github.workspace }}/app-release.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4.6.0
         with:
           name: app-apk
-          path: ./app.apk
+          path: ${{ github.workspace }}/app-release.apk
